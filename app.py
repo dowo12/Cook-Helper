@@ -5,11 +5,11 @@ import os
 import re
 
 # --- 앱 설정 ---
-st.set_page_config(page_title="창조주님의 무적 레시피", page_icon="👨‍🍳")
+st.set_page_config(page_title="레시피 도우미", page_icon="👨‍🍳")
 
 # --- 최신 Gemini API 설정 ---
 if "GEMINI_API_KEY" in st.secrets:
-    # 최신 google-genai 라이브러리 방식
+    # 가장 표준적인 클라이언트 설정
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 else:
     st.error("Secrets에 API 키가 설정되지 않았습니다.")
@@ -24,15 +24,11 @@ def get_video_id(url):
 
 def analyze_recipe_smart(video_url):
     """
-    자막을 직접 추출하지 않고, Gemini의 비디오 이해 능력을 활용합니다.
-    자막이 있으면 자막을, 없으면 영상 정보를 바탕으로 AI가 추론합니다.
+    자막을 직접 추출하지 않고, Gemini의 추론 능력을 활용합니다.
     """
     prompt = f"""
     이 유튜브 영상({video_url})의 레시피를 분석해줘.
-    
-    [분석 가이드]
-    1. 영상에 자막 데이터가 있다면 이를 우선 활용해.
-    2. 자막이 없다면 영상 제목, 유튜버 스타일, 그리고 네 지식을 바탕으로 가장 정확한 레시피를 만들어줘.
+    영상 제목과 유튜버의 스타일, 그리고 네가 가진 요리 지식을 바탕으로 가장 정확한 레시피를 정리해줘.
     
     [출력 양식]
     - 🛒 재료 및 분량
@@ -42,18 +38,19 @@ def analyze_recipe_smart(video_url):
     """
     
     try:
-        # 최신 SDK 호출 방식
+        # [수정] 모델 이름에서 'models/'를 제외하고 'gemini-1.5-flash'만 입력합니다.
         response = client.models.generate_content(
             model='gemini-1.5-flash',
             contents=prompt
         )
         return response.text
     except Exception as e:
+        # 에러 발생 시 상세 메시지 출력
         return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
 
 # --- UI 레이아웃 ---
-st.title("👨‍🍳 창조주님의 무적 레시피 분석기")
-st.info("최신 AI 엔진으로 자막 유무와 상관없이 레시피를 추출합니다.")
+st.title("👨‍🍳 레시피 분석기")
+st.info("자막 유무와 상관없이 AI가 영상을 분석합니다.")
 
 url = st.text_input("분석할 유튜브 링크(URL)를 입력하세요", placeholder="https://youtu.be/...")
 
