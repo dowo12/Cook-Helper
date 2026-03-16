@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 
 # [수정] 여기에 키를 직접 입력하세요
-MY_DIRECT_KEY = "AIzaSy..." 
+MY_DIRECT_KEY = "AIzaSyDbBjeubEUv8xys5xTpZXJmpir9ryDv1ys" 
 
 st.title("Gemini 끝장 테스트")
 
