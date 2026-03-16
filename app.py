@@ -18,31 +18,43 @@ def get_video_id(url):
     return match.group(1) if match else None
 
 def analyze_recipe(video_url):
-    prompt = f"이 유튜브 영상({video_url})의 레시피를 분석해줘. 재료와 조리 순서를 알려줘."
+    prompt = f"이 유튜브 영상({video_url})의 레시피를 분석해줘. 재료와 조리 순서를 한국어로 상세히 알려줘."
     
-    # [핵심] 여러 모델 이름을 순차적으로 시도합니다.
-    model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro']
+    # [핵심] 서버가 인식할 수 있는 모든 모델 이름 후보군입니다.
+    # 404 에러를 피하기 위해 하나씩 돌아가며 시도합니다.
+    model_candidates = [
+        'gemini-1.5-flash', 
+        'models/gemini-1.5-flash', 
+        'gemini-1.5-flash-latest',
+        'gemini-pro'
+    ]
     
-    for name in model_names:
+    last_error = ""
+    for model_name in model_candidates:
         try:
-            model = genai.GenerativeModel(name)
+            model = genai.GenerativeModel(model_name)
             response = model.generate_content(prompt)
             return response.text
-        except Exception:
-            continue # 실패하면 다음 모델로 넘어감
+        except Exception as e:
+            last_error = str(e)
+            continue # 에러 나면 다음 후보로 이동
             
-    return "현재 API 키로 사용 가능한 모델을 찾을 수 없습니다. AI Studio 설정을 확인해주세요."
+    return f"사용 가능한 모델을 찾지 못했습니다. 마지막 에러: {last_error}"
 
-# --- UI ---
+# --- UI 레이아웃 ---
 st.title("👨‍🍳 창조주님의 무적 레시피 분석기")
-url = st.text_input("유튜브 링크를 입력하세요")
+st.info("자막 유무와 상관없이 AI가 영상을 분석합니다.")
+
+url = st.text_input("분석할 유튜브 링크를 입력하세요")
 
 if st.button("분석 시작 🚀"):
     if url:
-        with st.spinner("AI가 분석 중입니다..."):
+        with st.spinner("AI가 최적의 연결 통로를 찾는 중..."):
             result = analyze_recipe(url)
             st.markdown(result)
+            
             vid = get_video_id(url)
-            if vid: st.video(url)
+            if vid:
+                st.video(url)
     else:
         st.error("링크를 입력해주세요.")
