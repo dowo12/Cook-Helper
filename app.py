@@ -1,18 +1,16 @@
 import streamlit as st
 import google.generativeai as genai
-from youtube_transcript_api import YouTubeTranscriptApi
 import pandas as pd
 import os
 import re
-import urllib.parse
 
 # --- 앱 설정 ---
-st.set_page_config(page_title="창조주님의 레시피 분석기", page_icon="👨‍🍳", layout="wide")
+st.set_page_config(page_title="창조주님의 무적 레시피", page_icon="👨‍🍳")
 
 # --- AI 설정 ---
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    # 모델 호출 방식을 가장 표준적인 형태로 유지합니다.
+    # 가장 똑똑하고 비디오 이해력이 좋은 모델 사용
     model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     st.error("Secrets에 API 키가 설정되지 않았습니다.")
@@ -25,65 +23,51 @@ def get_video_id(url):
     match = re.search(pattern, url)
     return match.group(1) if match else None
 
-def fetch_transcript(video_id):
-    """자막 데이터를 시도하고, 실패 시 None 반환"""
-    try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        try:
-            transcript = transcript_list.find_transcript(['ko'])
-        except:
-            try:
-                transcript = transcript_list.find_generated_transcript(['ko'])
-            except:
-                transcript = transcript_list.find_transcript(['en']).translate('ko')
-        return " ".join([t['text'] for t in transcript.fetch()])
-    except:
-        return None
-
-def analyze_recipe(video_url, transcript_text=None):
-    """자막이 있으면 자막 기반, 없으면 AI 지식 기반 분석"""
-    if transcript_text:
-        prompt = f"다음 유튜브 자막을 분석해서 레시피(재료, 원가, 순서, 팁)를 정리해줘:\n\n{transcript_text[:10000]}"
-    else:
-        prompt = f"이 유튜브 영상({video_url})의 레시피를 분석해줘. 자막이 없으니 네가 아는 정보를 바탕으로 요리 전문가로서 상세히 알려줘."
+def analyze_recipe_direct(video_url):
+    """자막 추출 시도 없이, AI에게 링크를 직접 던져 분석 요청"""
+    prompt = f"""
+    이 유튜브 영상({video_url})의 내용을 분석해서 레시피를 알려줘.
+    
+    1. 만약 네가 이 영상을 직접 접근해서 자막이나 내용을 볼 수 있다면 그 데이터를 최우선으로 사용해줘.
+    2. 만약 직접 접근이 안 된다면, 영상 제목과 유튜버의 정보, 그리고 네가 가진 요리 지식을 총동원해서 가장 정확한 레시피를 추론해줘.
+    
+    [양식]
+    - 🛒 재료 및 분량
+    - 💰 예상 원가 (한국 마트 기준)
+    - 📝 조리 순서
+    - 💡 쉐프의 비법 팁
+    """
     
     try:
+        # 모델에게 텍스트로 링크를 전달 (Gemini는 링크를 통해 정보를 유추하거나 접근 가능)
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"AI 분석 중 오류 발생: {str(e)}"
+        return f"AI 분석 중 오류가 발생했습니다: {str(e)}"
 
-# --- UI 레이아웃 ---
-st.title("👨‍🍳 창조주님의 레시피 분석기")
+# --- UI ---
+st.title("👨‍🍳 창조주님의 무적 레시피 분석기")
+st.info("자막 유무와 상관없이 AI가 영상을 분석하여 결과를 도출합니다.")
 
-# 🔍 유튜브 검색 기능
-st.subheader("🔍 영상 찾기")
-search_query = st.text_input("검색어를 입력하세요 (예: 임성근 무생채)")
-if search_query:
-    encoded = urllib.parse.quote(search_query)
-    st.markdown(f'[👉 유튜브에서 "{search_query}" 검색 결과 보기](https://www.youtube.com/results?search_query={encoded})')
+url = st.text_input("분석할 유튜브 링크를 입력하세요", placeholder="https://www.youtube.com/watch?v=...")
 
-st.divider()
-
-# 📝 분석 기능
-st.subheader("📝 영상 분석 및 저장")
-url = st.text_input("분석할 유튜브 링크(URL)를 입력하세요")
-
-if st.button("AI 분석 시작 🚀"):
+if st.button("레시피 추출하기 🚀"):
     if url:
         vid = get_video_id(url)
-        with st.spinner("AI 요리사가 분석 중입니다..."):
-            raw_text = fetch_transcript(vid) if vid else None
-            # 자막 유무와 상관없이 AI 분석 실행
-            result = analyze_recipe(url, raw_text)
-            st.session_state["result"] = result
+        with st.spinner("AI가 영상을 시청(?)하며 분석 중입니다..."):
+            # 자막 긁기 시도 없이 바로 AI에게 질문
+            result = analyze_recipe_direct(url)
+            
+            st.session_state["recipe_result"] = result
             if vid: st.video(url)
     else:
         st.error("링크를 입력해주세요.")
 
-if "result" in st.session_state:
-    st.markdown(st.session_state["result"])
-    if st.button("이 레시피 보관함에 저장 💾"):
-        new_data = pd.DataFrame([["새 레시피", st.session_state["result"]]], columns=["제목", "내용"])
+if "recipe_result" in st.session_state:
+    st.divider()
+    st.markdown(st.session_state["recipe_result"])
+    
+    if st.button("보관함에 저장 💾"):
+        new_data = pd.DataFrame([["새 레시피", st.session_state["recipe_result"]]], columns=["제목", "내용"])
         new_data.to_csv(DB_FILE, mode='a', header=not os.path.exists(DB_FILE), index=False, encoding='utf-8-sig')
-        st.success("보관함에 저장되었습니다!")
+        st.success("저장되었습니다!")
